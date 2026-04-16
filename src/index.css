@@ -1,0 +1,56 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-serif: "Playfair Display", serif;
+
+  --color-brand-bg: #080808;
+  --color-brand-card: #121212;
+  --color-brand-ink: #e0e0e0;
+  --color-brand-dim: #808080;
+  --color-brand-accent: #00ff88;
+  --color-brand-gold: #c5a059;
+  --color-brand-border: rgba(255, 255, 255, 0.1);
+  --color-brand-danger: #EF4444;
+}
+
+@layer base {
+  body {
+    @apply bg-brand-bg text-brand-ink font-sans transition-colors duration-300;
+  }
+}
+
+.panel {
+  @apply bg-brand-card border border-brand-border rounded-lg p-6 flex flex-col;
+}
+
+.section-label {
+  @apply text-[11px] uppercase tracking-[2px] text-brand-dim mb-5;
+}
+
+.stat-value {
+  @apply font-serif text-3xl mb-1;
+}
+
+.stat-sub {
+  @apply text-sm text-brand-accent;
+}
+
+.logo-text {
+  @apply font-serif italic text-2xl tracking-[2px] text-brand-gold;
+}
+
+.status-pill {
+  @apply px-3 py-1.5 border border-brand-accent rounded-full text-[10px] uppercase tracking-wider text-brand-accent flex items-center gap-2;
+}
+
+.status-dot {
+  @apply w-1.5 h-1.5 bg-brand-accent rounded-full;
+}
+
+.log-item {
+  @apply text-[11px] text-brand-dim font-mono mb-2 border-l-2 border-brand-gold pl-2;
+}
+

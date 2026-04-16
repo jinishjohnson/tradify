@@ -1,0 +1,6 @@
+{
+  "name": "Zenith AI Trader",
+  "description": "Fully automated AI-powered trading platform with profit tracking, stop-loss management, and Gemini-driven market analysis.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["AI Analysis", "Automated Trading", "Real-time Monitoring"]
+}
