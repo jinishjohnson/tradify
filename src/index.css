@@ -1,55 +1,319 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 @import "tailwindcss";
 
-@theme {
-  --font-sans: "Roboto", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
-  --font-serif: "Montserrat", serif;
-
-  --color-brand-bg: #080808;
-  --color-brand-card: #121212;
-  --color-brand-ink: #e0e0e0;
-  --color-brand-dim: #808080;
-  --color-brand-accent: #00ff88;
-  --color-brand-gold: #c5a059;
-  --color-brand-border: rgba(255, 255, 255, 0.1);
-  --color-brand-danger: #EF4444;
+/* ── MT5 Root Layout ─────────────────────────────────────────────────────── */
+.mt5-root {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  background: #131722;
+  color: #d1d4dc;
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
 }
 
-@layer base {
-  body {
-    @apply bg-brand-bg text-brand-ink font-sans transition-colors duration-300;
-  }
+/* ── Toolbar ─────────────────────────────────────────────────────────────── */
+.mt5-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 40px;
+  min-height: 40px;
+  background: #1a1d2e;
+  border-bottom: 1px solid #2a2e39;
+  padding: 0 8px;
+  flex-shrink: 0;
 }
 
-.panel {
-  @apply bg-brand-card border border-brand-border rounded-lg p-6 flex flex-col;
+.mt5-logo { height: 28px; object-fit: contain; }
+
+.mt5-toolbar-sep {
+  width: 1px;
+  height: 22px;
+  background: #2a2e39;
+  margin: 0 4px;
 }
 
-.section-label {
-  @apply text-[11px] uppercase tracking-[2px] text-brand-dim mb-5;
+.mt5-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: #2a2e39;
+  border: 1px solid #363a45;
+  border-radius: 3px;
+  color: #d1d4dc;
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+.mt5-btn:hover { background: #363c4e; }
+
+.mt5-btn-primary {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: #1a3a5c;
+  border: 1px solid #2962ff;
+  border-radius: 3px;
+  color: #90b4fb;
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.mt5-btn-primary:hover { background: #1e4a7a; }
+.mt5-btn-primary.active { background: #26a69a22; border-color: #26a69a; color: #26a69a; }
+
+.mt5-tf-btn {
+  padding: 3px 7px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  color: #787b86;
+  font-size: 11px;
+  font-family: 'JetBrains Mono', monospace;
+  cursor: pointer;
+  transition: all 0.1s;
+}
+.mt5-tf-btn:hover { color: #d1d4dc; background: #2a2e39; }
+.mt5-tf-btn.active { background: #2962ff22; border-color: #2962ff66; color: #90b4fb; }
+
+.mt5-clock {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #787b86;
+  font-size: 11px;
+  font-family: 'JetBrains Mono', monospace;
 }
 
-.stat-value {
-  @apply font-serif text-3xl mb-1;
+.mt5-status-badge {
+  padding: 3px 10px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+.mt5-status-badge.on  { background: #26a69a22; color: #26a69a; border: 1px solid #26a69a55; }
+.mt5-status-badge.off { background: #2a2e39; color: #787b86; border: 1px solid #363a45; }
+
+/* ── Workspace ───────────────────────────────────────────────────────────── */
+.mt5-workspace {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
-.stat-sub {
-  @apply text-sm text-brand-accent;
+/* ── Market Watch ────────────────────────────────────────────────────────── */
+.mt5-market-watch {
+  width: 190px;
+  min-width: 190px;
+  background: #1a1d2e;
+  border-right: 1px solid #2a2e39;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  flex-shrink: 0;
 }
 
-.logo-text {
-  @apply font-serif text-2xl tracking-[2px] text-brand-gold;
+.mt5-panel-title {
+  padding: 5px 8px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #787b86;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  background: #151821;
+  border-bottom: 1px solid #2a2e39;
 }
 
-.status-pill {
-  @apply px-3 py-1.5 border border-brand-accent rounded-full text-[10px] uppercase tracking-wider text-brand-accent flex items-center gap-2;
+.mt5-mw-header {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 56px;
+  padding: 3px 6px;
+  font-size: 9px;
+  color: #555;
+  text-transform: uppercase;
+  border-bottom: 1px solid #1e222d;
+  background: #131722;
 }
 
-.status-dot {
-  @apply w-1.5 h-1.5 bg-brand-accent rounded-full;
+.mt5-mw-list { flex: 1; overflow-y: auto; }
+
+.mt5-mw-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 56px;
+  padding: 4px 6px;
+  cursor: pointer;
+  border-bottom: 1px solid #1a1d2e;
+  transition: background 0.1s;
+}
+.mt5-mw-row:hover { background: #1e2235; }
+.mt5-mw-row.selected { background: #2962ff18; border-left: 2px solid #2962ff; }
+
+.mw-sym { font-weight: 600; font-size: 11px; color: #d1d4dc; }
+
+.up   { color: #26a69a; }
+.down { color: #ef5350; }
+
+.mt5-portfolio-stats {
+  padding: 4px 6px;
+}
+.mt5-portfolio-stats > div {
+  display: flex;
+  justify-content: space-between;
+  padding: 2px 0;
+  font-size: 10px;
+  border-bottom: 1px solid #1e222d;
+}
+.mt5-portfolio-stats span:first-child { color: #787b86; }
+
+/* ── Chart Area ──────────────────────────────────────────────────────────── */
+.mt5-chart-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  background: #131722;
 }
 
-.log-item {
-  @apply text-[11px] text-brand-dim font-mono mb-2 border-l-2 border-brand-gold pl-2;
+.mt5-chart-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 28px;
+  min-height: 28px;
+  padding: 0 10px;
+  background: #1a1d2e;
+  border-bottom: 1px solid #2a2e39;
+  flex-shrink: 0;
 }
+
+.mt5-chart-symbol { font-size: 13px; font-weight: 700; color: #d1d4dc; }
+.mt5-chart-tf { font-size: 11px; color: #787b86; background: #2a2e39; padding: 1px 6px; border-radius: 2px; }
+.mt5-ohlc-label { font-size: 11px; color: #787b86; }
+.ohlc-val { margin-left: 2px; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #d1d4dc; }
+
+.mt5-chart-container {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ── Terminal ────────────────────────────────────────────────────────────── */
+.mt5-terminal {
+  height: 210px;
+  min-height: 210px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: #1a1d2e;
+  border-top: 1px solid #2a2e39;
+}
+
+.mt5-tabs {
+  display: flex;
+  gap: 0;
+  background: #151821;
+  border-bottom: 1px solid #2a2e39;
+  flex-shrink: 0;
+}
+
+.mt5-tab {
+  padding: 5px 14px;
+  background: transparent;
+  border: none;
+  border-right: 1px solid #2a2e39;
+  color: #787b86;
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.1s;
+  white-space: nowrap;
+}
+.mt5-tab:hover { color: #d1d4dc; background: #1e2235; }
+.mt5-tab.active { color: #d1d4dc; background: #1a1d2e; border-bottom: 2px solid #2962ff; }
+
+.mt5-tab-content {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+/* ── Trade Table ─────────────────────────────────────────────────────────── */
+.mt5-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+.mt5-table th {
+  padding: 4px 8px;
+  text-align: left;
+  color: #555;
+  font-weight: 500;
+  font-size: 10px;
+  text-transform: uppercase;
+  border-bottom: 1px solid #2a2e39;
+  background: #151821;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.mt5-table td {
+  padding: 4px 8px;
+  border-bottom: 1px solid #1e222d;
+  color: #b2b5be;
+}
+.mt5-table tr:hover td { background: #1e2235; }
+.mt5-table .mono  { font-family: 'JetBrains Mono', monospace; font-size: 10px; }
+.mt5-table .bold  { font-weight: 600; }
+.mt5-table .dim   { color: #555; }
+.profit-row td    { background: #26a69a06; }
+.loss-row td      { background: #ef535006; }
+
+/* ── Journal / Logs ──────────────────────────────────────────────────────── */
+.mt5-log {
+  padding: 4px 8px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+}
+.mt5-log-entry {
+  padding: 2px 0;
+  color: #787b86;
+  border-bottom: 1px solid #1e222d;
+}
+
+/* ── Status Bar ──────────────────────────────────────────────────────────── */
+.mt5-status-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  min-height: 24px;
+  padding: 0 10px;
+  background: #151821;
+  border-top: 1px solid #2a2e39;
+  font-size: 10px;
+  color: #787b86;
+  flex-shrink: 0;
+}
+.mt5-status-bar b { color: #d1d4dc; }
+.mt5-status-bar .sep { color: #2a2e39; }
+.mt5-status-bar .dim { color: #555; }
+
+/* ── Scrollbar ───────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: #131722; }
+::-webkit-scrollbar-thumb { background: #2a2e39; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #363a45; }
+
+body { margin: 0; overflow: hidden; }

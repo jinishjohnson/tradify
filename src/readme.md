@@ -1,0 +1,1 @@
+this app is fully automated with the help of Groq AI and 
