@@ -2,9 +2,9 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Roboto", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
-  --font-serif: "Playfair Display", serif;
+  --font-serif: "Montserrat", serif;
 
   --color-brand-bg: #080808;
   --color-brand-card: #121212;
@@ -39,7 +39,7 @@
 }
 
 .logo-text {
-  @apply font-serif italic text-2xl tracking-[2px] text-brand-gold;
+  @apply font-serif text-2xl tracking-[2px] text-brand-gold;
 }
 
 .status-pill {
@@ -53,4 +53,3 @@
 .log-item {
   @apply text-[11px] text-brand-dim font-mono mb-2 border-l-2 border-brand-gold pl-2;
 }
-

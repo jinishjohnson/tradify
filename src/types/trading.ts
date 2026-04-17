@@ -38,3 +38,30 @@ export interface Portfolio {
   openPositions: Trade[];
   history: Trade[];
 }
+
+export interface NewsItem {
+  id: string;
+  source: string;
+  headline: string;
+  time: string;
+  sentiment: 'positive' | 'negative' | 'neutral';
+  impact?: 'high' | 'medium' | 'low';
+}
+
+export interface EventItem {
+  id: string;
+  title: string;
+  time: string;
+  importance: 'high' | 'medium' | 'low';
+  country?: string;
+  forecast?: string;
+  previous?: string;
+}
+
+export interface RiskSettings {
+  autoHedge: boolean;
+  dailyLossLimit: number;
+  globalStopLoss: number;
+  trailingStop: boolean;
+  aiOverride: boolean;
+}

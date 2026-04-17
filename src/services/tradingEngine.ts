@@ -1,6 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { MarketData, Portfolio, Trade, AISignal } from '../types/trading';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { MarketData, Portfolio, Trade, AISignal, RiskSettings } from '../types/trading';
 import { getTradingSignal } from './aiService';
+
+// Per-symbol cooldown: don't re-analyze a symbol within this window
+const SYMBOL_COOLDOWN_MS = 90_000; // 90 seconds
 
 const INITIAL_BALANCE = 10000;
 
@@ -14,25 +17,53 @@ export function useTradingEngine() {
   const [marketData, setMarketData] = useState<MarketData[]>([]);
   const [isBotRunning, setIsBotRunning] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
+  const [riskSettings, setRiskSettings] = useState<RiskSettings>({
+    autoHedge: false,
+    dailyLossLimit: 5,
+    globalStopLoss: 2,
+    trailingStop: true,
+    aiOverride: false
+  });
 
-  const addLog = (msg: string) => {
+  // Refs so interval closures always see the latest values without re-running effects
+  const marketDataRef = useRef<MarketData[]>([]);
+  const portfolioRef = useRef<Portfolio>({ balance: INITIAL_BALANCE, equity: INITIAL_BALANCE, openPositions: [], history: [] });
+  const symbolCooldownRef = useRef<Map<string, number>>(new Map());
+
+  const addLog = useCallback((msg: string) => {
     setLogs(prev => [`[${new Date().toLocaleTimeString()}] ${msg}`, ...prev].slice(0, 50));
-  };
+  }, []);
 
-  // Simulate Market Ticking
+  // Simulate Market Ticking — track 5-min rolling change so AI sees real signal
+  const priceHistory = useRef<Record<string, number[]>>({});
+
   useEffect(() => {
     const symbols = ['BTC', 'ETH', 'SOL', 'AAPL', 'TSLA', 'NVDA'];
+    const HISTORY_WINDOW = 150; // 150 ticks × 2s = 5 minutes
+
     const interval = setInterval(() => {
       setMarketData(prev => {
         return symbols.map(s => {
           const old = prev.find(p => p.symbol === s);
-          const basePrice = old?.price || (s === 'BTC' ? 65000 : s === 'ETH' ? 3500 : 150);
-          const change = (Math.random() - 0.5) * 0.005; // 0.5% max volatility per tick
-          const newPrice = basePrice * (1 + change);
+          const basePrice = old?.price || (s === 'BTC' ? 65000 : s === 'ETH' ? 3500 : s === 'SOL' ? 150 : s === 'AAPL' ? 175 : s === 'TSLA' ? 250 : 900);
+          const tick = (Math.random() - 0.48) * 0.012; // slightly bullish bias, ±1.2% per tick
+          const newPrice = basePrice * (1 + tick);
+
+          // Maintain rolling price history per symbol
+          if (!priceHistory.current[s]) priceHistory.current[s] = [];
+          priceHistory.current[s].push(newPrice);
+          if (priceHistory.current[s].length > HISTORY_WINDOW) {
+            priceHistory.current[s].shift();
+          }
+
+          // 5-min change: current vs oldest price in window
+          const oldest = priceHistory.current[s][0] ?? newPrice;
+          const rollingChange = ((newPrice / oldest) - 1) * 100;
+
           return {
             symbol: s,
             price: newPrice,
-            change: ((newPrice / (old?.price || newPrice)) - 1) * 100,
+            change: rollingChange,      // 5-min % change — meaningful for AI
             volume: 100000 + Math.random() * 50000,
             timestamp: new Date().toISOString()
           };
@@ -41,6 +72,10 @@ export function useTradingEngine() {
     }, 2000);
     return () => clearInterval(interval);
   }, []);
+
+  // Keep refs in sync with state
+  useEffect(() => { marketDataRef.current = marketData; }, [marketData]);
+  useEffect(() => { portfolioRef.current = portfolio; }, [portfolio]);
 
   // Monitor SL/TP
   useEffect(() => {
@@ -98,8 +133,16 @@ export function useTradingEngine() {
     return () => clearInterval(interval);
   }, [marketData, portfolio.openPositions]);
 
-  const executeTrade = async (symbol: string) => {
-    const data = marketData.find(m => m.symbol === symbol);
+  const executeTrade = useCallback(async (symbol: string) => {
+    // Enforce per-symbol cooldown to avoid hammering the AI with the same symbol
+    const lastAnalyzed = symbolCooldownRef.current.get(symbol) ?? 0;
+    if (Date.now() - lastAnalyzed < SYMBOL_COOLDOWN_MS) {
+      addLog(`[SKIP] ${symbol} analyzed recently — cooldown active`);
+      return;
+    }
+    symbolCooldownRef.current.set(symbol, Date.now());
+
+    const data = marketDataRef.current.find(m => m.symbol === symbol);
     if (!data) return;
 
     addLog(`AI analyzing ${symbol}...`);
@@ -108,8 +151,9 @@ export function useTradingEngine() {
 
     if (signal.action === 'HOLD') return;
 
-    const quantity = (portfolio.balance * 0.1) / data.price; // Risk 10% of balance per trade
-    if (quantity <= 0 || portfolio.balance < (data.price * quantity)) {
+    const currentPortfolio = portfolioRef.current;
+    const quantity = (currentPortfolio.balance * 0.1) / data.price;
+    if (quantity <= 0 || currentPortfolio.balance < data.price * quantity) {
       addLog(`Insufficient funds for ${symbol}`);
       return;
     }
@@ -133,26 +177,34 @@ export function useTradingEngine() {
     }));
 
     addLog(`EXECUTED ${newTrade.side} ${symbol} at $${newTrade.price.toFixed(2)}`);
-  };
+  }, [addLog]);
 
   // Automated Trading Loop
+  // Only depends on isBotRunning — live data is read via refs to keep the interval stable
   useEffect(() => {
     if (!isBotRunning) return;
 
     const runAutomatedTrade = async () => {
-      if (portfolio.openPositions.length >= 5) return; // Limit concurrent trades
+      const currentPortfolio = portfolioRef.current;
+      if (currentPortfolio.openPositions.length >= 5) return; // Limit concurrent trades
 
-      // Pick a random symbol to analyze
-      const symbols = marketData.map(m => m.symbol);
-      const randomSymbol = symbols[Math.floor(Math.random() * symbols.length)];
-      if (randomSymbol) {
-        await executeTrade(randomSymbol);
-      }
+      const symbols = marketDataRef.current.map(m => m.symbol);
+      if (symbols.length === 0) return;
+
+      // Pick a random symbol, but skip ones still on cooldown
+      const available = symbols.filter(s => {
+        const last = symbolCooldownRef.current.get(s) ?? 0;
+        return Date.now() - last >= SYMBOL_COOLDOWN_MS;
+      });
+
+      const target = available[Math.floor(Math.random() * available.length)];
+      if (target) await executeTrade(target);
     };
 
-    const interval = setInterval(runAutomatedTrade, 15000); // Analyze every 15s
+    const interval = setInterval(runAutomatedTrade, 30000); // Every 30s — safer for rate limits
+    runAutomatedTrade(); // Fire once immediately on start
     return () => clearInterval(interval);
-  }, [isBotRunning, marketData, portfolio.balance, portfolio.openPositions.length]);
+  }, [isBotRunning, executeTrade]);
 
   return {
     portfolio,
@@ -160,6 +212,8 @@ export function useTradingEngine() {
     isBotRunning,
     setIsBotRunning,
     logs,
-    executeTrade
+    executeTrade,
+    riskSettings,
+    setRiskSettings
   };
 }
