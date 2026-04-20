@@ -13,6 +13,7 @@ import { fetchPythonMarketStats, PythonMarketStats } from './services/dataServic
 import { TradingChart, OHLCCandle } from './components/TradingChart';
 import { OrderTicket } from './components/OrderTicket';
 import { NewsPanel } from './components/NewsPanel';
+import { AlgoTradeModal } from './components/AlgoTradeModal';
 import { Play, Pause, Plus, Clock } from 'lucide-react';
 
 const BASE_PRICES: Record<string, number> = {
@@ -75,7 +76,11 @@ function genHistory(symbol: string, tf: number, count = 200): OHLCCandle[] {
 const TABS = ['Trade', 'Exposure', 'History', 'News', 'Mailbox', 'Calendar', 'Alerts', 'Journal'];
 
 export default function App() {
-  const { portfolio, marketData, isBotRunning, setIsBotRunning, logs, executeTrade, executeManualTrade, closePosition, riskSettings, setRiskSettings } = useTradingEngine();
+  const {
+    portfolio, marketData, isBotRunning, setIsBotRunning,
+    botCategory, setBotCategory, logs, executeTrade,
+    executeManualTrade, closePosition, riskSettings, setRiskSettings
+  } = useTradingEngine();
 
   const [selectedSymbol, setSelectedSymbol] = useState('BTC');
   const [timeframe, setTimeframe] = useState('H1');
@@ -83,6 +88,7 @@ export default function App() {
   const [mwCategory, setMwCategory] = useState<MWCategory>('crypto');
   const [mwQuery, setMwQuery] = useState('');
   const [showOrderTicket, setShowOrderTicket] = useState(false);
+  const [showAlgoModal, setShowAlgoModal] = useState(false);
   const [candles, setCandles] = useState<OHLCCandle[]>([]);
   const [pythonStats, setPythonStats] = useState<PythonMarketStats | null>(null);
   const currentCandleRef = useRef<OHLCCandle | null>(null);
@@ -159,10 +165,16 @@ export default function App() {
 
         <button
           className={cn('mt5-btn-primary', isBotRunning && 'active')}
-          onClick={() => setIsBotRunning(!isBotRunning)}
+          onClick={() => {
+            if (isBotRunning) {
+              setIsBotRunning(false);
+            } else {
+              setShowAlgoModal(true);
+            }
+          }}
         >
           {isBotRunning ? <Pause size={12} /> : <Play size={12} />}
-          Algo Trading
+          Algo Trading {isBotRunning && botCategory && `(${botCategory})`}
         </button>
 
         <button className="mt5-btn" onClick={() => setShowOrderTicket(true)}>
@@ -397,6 +409,16 @@ export default function App() {
           balance={portfolio.balance}
           onPlace={executeManualTrade}
           onClose={() => setShowOrderTicket(false)}
+        />
+      )}
+      {showAlgoModal && (
+        <AlgoTradeModal
+          onSelect={(cat) => {
+            setBotCategory(cat);
+            setIsBotRunning(true);
+            setShowAlgoModal(false);
+          }}
+          onClose={() => setShowAlgoModal(false)}
         />
       )}
     </div>

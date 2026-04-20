@@ -823,3 +823,123 @@ body { margin: 0; overflow: hidden; }
 /* Spin utility */
 .spin { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Algo Trade Modal ───────────────────────────────────────────────────── */
+.algo-modal {
+  width: 420px;
+}
+
+.algo-modal-content {
+  padding: 16px 20px 20px;
+}
+
+.algo-modal-subtitle {
+  font-size: 13px;
+  color: #787b86;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.algo-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.algo-card {
+  display: flex;
+  align-items: center;
+  padding: 14px;
+  background: #131722;
+  border: 1px solid #2a2e39;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.algo-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.03), transparent);
+  transform: translateX(-100%);
+  transition: transform 0.5s;
+}
+
+.algo-card:hover::before {
+  transform: translateX(100%);
+}
+
+.algo-card:hover {
+  background: #1c2130;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+.algo-card-icon {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #1a1d2e;
+  border-radius: 10px;
+  margin-right: 16px;
+  flex-shrink: 0;
+}
+
+.algo-card-info {
+  flex: 1;
+}
+
+.algo-card-info h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: #d1d4dc;
+}
+
+.algo-card-info p {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: #787b86;
+  line-height: 1.4;
+}
+
+.algo-card-action {
+  margin-left: 12px;
+}
+
+.algo-start-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: #2a2e39;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #b2b5be;
+  transition: all 0.15s;
+}
+
+.algo-card:hover .algo-start-btn {
+  background: #2962ff;
+  color: white;
+}
+
+/* Category Specifics */
+.algo-card-crypto:hover { border-color: #f59e0b55; }
+.algo-card-crypto:hover .algo-start-btn { background: #f59e0b; }
+
+.algo-card-stocks:hover { border-color: #26a69a55; }
+.algo-card-stocks:hover .algo-start-btn { background: #26a69a; }
+
+.algo-card-commodities:hover { border-color: #f9731655; }
+.algo-card-commodities:hover .algo-start-btn { background: #f97316; }
+
+.algo-modal-footer {
+  padding: 0 20px 20px;
+}

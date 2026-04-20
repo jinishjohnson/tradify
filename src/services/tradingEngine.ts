@@ -43,6 +43,7 @@ export function useTradingEngine() {
   });
   const [marketData, setMarketData] = useState<MarketData[]>([]);
   const [isBotRunning, setIsBotRunning] = useState(false);
+  const [botCategory, setBotCategory] = useState<'crypto' | 'stocks' | 'commodities' | null>(null);
   const [logs, setLogs] = useState<string[]>([]);
   const [riskSettings, setRiskSettings] = useState<RiskSettings>({
     autoHedge: false,
@@ -453,7 +454,10 @@ export function useTradingEngine() {
       const currentPortfolio = portfolioRef.current;
       if (currentPortfolio.openPositions.length >= 5) return; // Limit concurrent trades
 
-      const symbols = marketDataRef.current.map(m => m.symbol);
+      const symbols = marketDataRef.current
+        .filter(m => !botCategory || (m.category ?? 'crypto') === botCategory)
+        .map(m => m.symbol);
+
       if (symbols.length === 0) return;
 
       // Pick a random symbol, but skip ones still on cooldown
@@ -469,13 +473,15 @@ export function useTradingEngine() {
     const interval = setInterval(runAutomatedTrade, 30000); // Every 30s — safer for rate limits
     runAutomatedTrade(); // Fire once immediately on start
     return () => clearInterval(interval);
-  }, [isBotRunning, executeTrade]);
+  }, [isBotRunning, executeTrade, botCategory]);
 
   return {
     portfolio,
     marketData,
     isBotRunning,
     setIsBotRunning,
+    botCategory,
+    setBotCategory,
     logs,
     executeTrade,
     executeManualTrade,
