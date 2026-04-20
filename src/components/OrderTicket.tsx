@@ -30,7 +30,13 @@ interface OrderTicketProps {
 const ALL_SYMBOLS = [
   'BTC','ETH','SOL','BNB','XRP','ADA',
   'AAPL','TSLA','NVDA','MSFT','AMZN','GOOGL','META',
-  'XAUUSD','XAGUSD','USOIL','NATGAS','COPPER',
+  'NFLX','AMD','INTC','CRM','ORCL','QCOM','AVGO',
+  'JPM','V','GS','JNJ','UNH',
+  'WMT','DIS','KO','PEP','HD','NKE','BA','PYPL',
+  'XAUUSD','XAGUSD','USOIL','BRENT','NATGAS','COPPER',
+  'PLATINUM','PALLADIUM','WHEAT','CORN','SOYBEAN',
+  'COFFEE','SUGAR','COCOA','COTTON','OJ',
+  'GASOLINE','HEATING','CATTLE','HOGS',
 ];
 
 export function OrderTicket({ symbol: initSymbol, marketData, balance, onPlace, onClose }: OrderTicketProps) {
@@ -106,10 +112,16 @@ export function OrderTicket({ symbol: initSymbol, marketData, balance, onPlace, 
               {['BTC','ETH','SOL','BNB','XRP','ADA'].map(s => <option key={s}>{s}</option>)}
             </optgroup>
             <optgroup label="Stocks">
-              {['AAPL','TSLA','NVDA','MSFT','AMZN','GOOGL','META'].map(s => <option key={s}>{s}</option>)}
+              {['AAPL','TSLA','NVDA','MSFT','AMZN','GOOGL','META',
+                'NFLX','AMD','INTC','CRM','ORCL','QCOM','AVGO',
+                'JPM','V','GS','JNJ','UNH',
+                'WMT','DIS','KO','PEP','HD','NKE','BA','PYPL'].map(s => <option key={s}>{s}</option>)}
             </optgroup>
             <optgroup label="Commodities">
-              {['XAUUSD','XAGUSD','USOIL','NATGAS','COPPER'].map(s => <option key={s}>{s}</option>)}
+              {['XAUUSD','XAGUSD','USOIL','BRENT','NATGAS','COPPER',
+                'PLATINUM','PALLADIUM','WHEAT','CORN','SOYBEAN',
+                'COFFEE','SUGAR','COCOA','COTTON','OJ',
+                'GASOLINE','HEATING','CATTLE','HOGS'].map(s => <option key={s}>{s}</option>)}
             </optgroup>
           </select>
         </div>

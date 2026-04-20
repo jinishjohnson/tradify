@@ -1,12 +1,38 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { MarketData, Portfolio, Trade, AISignal, RiskSettings } from '../types/trading';
 import { getTradingSignal } from './aiService';
-import { connectBinanceWebSocket, fetchAllLiveQuotes, connectFinnhubWebSocket, BINANCE_API_KEY } from './marketDataService';
+import { connectBinanceWebSocket, fetchAllLiveQuotes, connectFinnhubWebSocket, BINANCE_API_KEY, TD_SYMBOLS } from './marketDataService';
 
 // Per-symbol cooldown: don't re-analyze a symbol within this window
 const SYMBOL_COOLDOWN_MS = 90_000; // 90 seconds
 
 const INITIAL_BALANCE = 10000;
+const STOCK_FALLBACK = ['AAPL', 'TSLA', 'NVDA', 'MSFT', 'AMZN', 'GOOGL', 'META',
+  'NFLX', 'AMD', 'INTC', 'CRM', 'ORCL', 'QCOM', 'AVGO',
+  'JPM', 'V', 'GS', 'JNJ', 'UNH',
+  'WMT', 'DIS', 'KO', 'PEP', 'HD', 'NKE', 'BA', 'PYPL'];
+const COMMODITY_FALLBACK: Array<{ app: string; td: string }> = [
+  { app: 'XAUUSD', td: 'XAU/USD' },
+  { app: 'XAGUSD', td: 'XAG/USD' },
+  { app: 'USOIL', td: 'WTI' },
+  { app: 'BRENT', td: 'BRENT' },
+  { app: 'NATGAS', td: 'NG' },
+  { app: 'COPPER', td: 'COPPER' },
+  { app: 'PLATINUM', td: 'PLATINUM' },
+  { app: 'PALLADIUM', td: 'PALLADIUM' },
+  { app: 'WHEAT', td: 'WHEAT' },
+  { app: 'CORN', td: 'CORN' },
+  { app: 'SOYBEAN', td: 'SOYBEAN' },
+  { app: 'COFFEE', td: 'COFFEE' },
+  { app: 'SUGAR', td: 'SUGAR' },
+  { app: 'COCOA', td: 'COCOA' },
+  { app: 'COTTON', td: 'COTTON' },
+  { app: 'OJ', td: 'OJ' },
+  { app: 'GASOLINE', td: 'GASOLINE' },
+  { app: 'HEATING', td: 'HEATING' },
+  { app: 'CATTLE', td: 'CATTLE' },
+  { app: 'HOGS', td: 'HOGS' },
+];
 
 export function useTradingEngine() {
   const [portfolio, setPortfolio] = useState<Portfolio>({
@@ -47,8 +73,14 @@ export function useTradingEngine() {
     BTC: 75000, ETH: 1580, SOL: 130, BNB: 590, XRP: 2.15, ADA: 0.62,
     // Stocks (Twelve Data overrides these every 15s)
     AAPL: 198, TSLA: 247, NVDA: 875, MSFT: 378, AMZN: 182, GOOGL: 156, META: 498,
-    // Commodities — real April 2026 prices
-    XAUUSD: 4792, XAGUSD: 32.5, USOIL: 62.4, NATGAS: 3.2, COPPER: 4.8,
+    NFLX: 950, AMD: 165, INTC: 28, CRM: 340, ORCL: 190, QCOM: 185, AVGO: 1850,
+    JPM: 245, V: 310, GS: 520, JNJ: 165, UNH: 590,
+    WMT: 95, DIS: 115, KO: 72, PEP: 175, HD: 405, NKE: 80, BA: 195, PYPL: 78,
+    // Commodities — real market prices (Yahoo Finance live)
+    XAUUSD: 4833, XAGUSD: 80, USOIL: 86.4, BRENT: 94, NATGAS: 2.69, COPPER: 6.05,
+    PLATINUM: 2084, PALLADIUM: 1562, WHEAT: 603, CORN: 457, SOYBEAN: 1166,
+    COFFEE: 287, SUGAR: 13.4, COCOA: 3421, COTTON: 79.3, OJ: 185,
+    GASOLINE: 3.01, HEATING: 3.43, CATTLE: 247, HOGS: 101,
   };
 
   const ALL_SYMBOLS = Object.keys(BASE_MAP);
@@ -58,12 +90,55 @@ export function useTradingEngine() {
   useEffect(() => {
     setMarketData(ALL_SYMBOLS.map(s => ({
       symbol: s,
+      category: COMMODITY_FALLBACK.some(c => c.app === s) ? 'commodities' : STOCK_FALLBACK.includes(s) ? 'stocks' : 'crypto',
       price: BASE_MAP[s],
       change: 0,
       volume: 0,
       timestamp: new Date().toISOString(),
     })));
   // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Load broad stock + commodity universes from Twelve Data and register for live polling
+  useEffect(() => {
+    const loadUniverses = async () => {
+      try {
+        const [stocksRes, commoditiesRes] = await Promise.all([
+          fetch('/api/proxy/symbols?type=stocks&limit=5000'),
+          fetch('/api/proxy/symbols?type=commodities&limit=120'),
+        ]);
+
+        const stocksJson = stocksRes.ok ? await stocksRes.json() : {};
+        const commoditiesJson = commoditiesRes.ok ? await commoditiesRes.json() : {};
+
+        const stockSymbols = ((stocksJson?.data ?? []) as any[])
+          .map((d: any) => String(d.symbol ?? '').toUpperCase())
+          .filter((s: string) => /^[A-Z]{1,5}(\.[A-Z]{1,2})?$/.test(s))
+          .filter((s: string) => !/\d/.test(s))
+          .filter((s: string, idx: number, arr: string[]) => arr.indexOf(s) === idx)
+          .slice(0, 5000);
+
+        const commodityPairs = ((commoditiesJson?.data ?? []) as any[])
+          .map((d: any) => String(d.symbol ?? '').toUpperCase())
+          .filter((s: string) => !!s)
+          .map((tdSym: string) => ({ app: tdSym.replace(/[^A-Z0-9]/g, ''), td: tdSym }))
+          .filter((x: { app: string; td: string }) => x.app.length > 0)
+          .slice(0, 120);
+
+        const finalStocks = stockSymbols.length > 0 ? stockSymbols : STOCK_FALLBACK;
+        const finalCommodities = commodityPairs.length > 0 ? commodityPairs : COMMODITY_FALLBACK;
+
+        finalStocks.forEach((s) => { TD_SYMBOLS[s] = s; });
+        finalCommodities.forEach((c) => { TD_SYMBOLS[c.app] = c.td; });
+
+        // Do not push unpriced rows here. Symbols are registered for polling via TD_SYMBOLS,
+        // and rows are added only when a real quote arrives.
+      } catch (err) {
+        console.error('Failed to load stock/commodity universes:', err);
+      }
+    };
+
+    loadUniverses();
   }, []);
 
   // Binance data → list all USDT pairs; stream most liquid subset in real time
@@ -81,9 +156,19 @@ export function useTradingEngine() {
       .then(data => {
         const usdtPairs = (data as any[])
           .filter((d: any) => d.symbol?.endsWith('USDT') && d.lastPrice)
+          .map((d: any) => {
+            const base = String(d.symbol).replace('USDT', '').toUpperCase();
+            return { ...d, base };
+          })
+          // Keep clean spot symbols only; removes malformed tickers like A00/A02/A0H.
+          .filter((d: any) => /^[A-Z]{2,10}$/.test(d.base))
+          // Exclude leveraged tokens/noise for cleaner market-watch behavior.
+          .filter((d: any) => !/(UP|DOWN|BULL|BEAR)$/.test(d.base))
           .sort((a: any, b: any) => parseFloat(b.quoteVolume || '0') - parseFloat(a.quoteVolume || '0'));
 
-        const cryptoSymbols = usdtPairs.map((d: any) => d.symbol.replace('USDT', ''));
+        const cryptoSymbols = usdtPairs
+          .map((d: any) => d.base)
+          .filter((s: string, idx: number, arr: string[]) => arr.indexOf(s) === idx);
         const streamSymbols = cryptoSymbols.slice(0, 180);
         const fallbackSymbols = ['BTC', 'ETH', 'SOL', 'BNB', 'XRP', 'ADA'];
         const displaySymbols = cryptoSymbols.length > 0 ? cryptoSymbols : fallbackSymbols;
@@ -92,7 +177,7 @@ export function useTradingEngine() {
         setMarketData(prev => {
           const existingSyms = new Set(prev.map(m => m.symbol));
           const tickMap = new Map(
-            usdtPairs.map((d: any) => [d.symbol.replace('USDT', ''), d]),
+            usdtPairs.map((d: any) => [d.base, d]),
           );
           const newItems = displaySymbols
             .filter((s: string) => !existingSyms.has(s))
@@ -103,6 +188,8 @@ export function useTradingEngine() {
               const volume = parseFloat(row?.quoteVolume || '0');
               return {
                 symbol: s,
+                category: 'crypto' as const,
+                source: 'BINANCE' as const,
                 price: Number.isFinite(price) ? price : 0,
                 change: Number.isFinite(change) ? change : 0,
                 volume: Number.isFinite(volume) ? volume : 0,
@@ -145,7 +232,7 @@ export function useTradingEngine() {
         const oldest = priceHistory.current[m.symbol][0] ?? newPrice;
         const change = ((newPrice / oldest) - 1) * 100;
         
-        return { ...m, price: newPrice, change, timestamp: new Date().toISOString() };
+        return { ...m, source: 'BINANCE', price: newPrice, change, timestamp: new Date().toISOString() };
       }));
       
       pendingUpdates.current = {};
@@ -155,7 +242,10 @@ export function useTradingEngine() {
   }, []);
   // Finnhub WebSocket → update stock prices in real-time
   useEffect(() => {
-    const stockSymbols = ['AAPL', 'TSLA', 'NVDA', 'MSFT', 'AMZN', 'GOOGL', 'META'];
+    const stockSymbols = ['AAPL', 'TSLA', 'NVDA', 'MSFT', 'AMZN', 'GOOGL', 'META',
+      'NFLX', 'AMD', 'INTC', 'CRM', 'ORCL', 'QCOM', 'AVGO',
+      'JPM', 'V', 'GS', 'JNJ', 'UNH',
+      'WMT', 'DIS', 'KO', 'PEP', 'HD', 'NKE', 'BA', 'PYPL'];
     const disconnect = connectFinnhubWebSocket(stockSymbols, (symbol, price) => {
       pendingUpdates.current[symbol] = price;
     });
@@ -172,10 +262,13 @@ export function useTradingEngine() {
         const updated = prev.map(m => {
           const q = quotes[m.symbol];
           if (!q) return m;
-          return { ...m, price: q.price, change: q.change, volume: q.volume, timestamp: q.timestamp };
+          if (!Number.isFinite(q.price) || q.price <= 0) return m;
+          return { ...m, category: q.category, source: q.source, price: q.price, change: q.change, volume: q.volume, timestamp: q.timestamp };
         });
         const existing = new Set(updated.map(m => m.symbol));
-        const additions = Object.values(quotes).filter(q => !existing.has(q.symbol));
+        const additions = Object.values(quotes).filter(
+          q => !existing.has(q.symbol) && Number.isFinite(q.price) && q.price > 0,
+        );
         return additions.length > 0 ? [...updated, ...additions] : updated;
       });
     };

@@ -6,6 +6,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Logo from './assets/logo.png';
 import { useTradingEngine } from './services/tradingEngine';
+import { setPreferredStockSymbols } from './services/marketDataService';
 import { cn, formatCurrency } from './lib/utils';
 import { getMarketRecommendations } from './services/aiService';
 import { fetchPythonMarketStats, PythonMarketStats } from './services/dataService';
@@ -19,15 +20,28 @@ const BASE_PRICES: Record<string, number> = {
   BTC: 75000, ETH: 1580, SOL: 130, BNB: 590, XRP: 2.15, ADA: 0.62,
   // Stocks (Twelve Data live — these are fallback seeds only)
   AAPL: 198, TSLA: 247, NVDA: 875, MSFT: 378, AMZN: 182, GOOGL: 156, META: 498,
-  // Commodities — updated to real April 2026 prices
-  XAUUSD: 4792, XAGUSD: 32.5, USOIL: 62.4, NATGAS: 3.2, COPPER: 4.8,
+  NFLX: 950, AMD: 165, INTC: 28, CRM: 340, ORCL: 190, QCOM: 185, AVGO: 1850,
+  JPM: 245, V: 310, GS: 520, JNJ: 165, UNH: 590,
+  WMT: 95, DIS: 115, KO: 72, PEP: 175, HD: 405, NKE: 80, BA: 195, PYPL: 78,
+  // Commodities — real market prices (Yahoo Finance live)
+  XAUUSD: 4833, XAGUSD: 80, USOIL: 86.4, BRENT: 94, NATGAS: 2.69, COPPER: 6.05,
+  PLATINUM: 2084, PALLADIUM: 1562, WHEAT: 603, CORN: 457, SOYBEAN: 1166,
+  COFFEE: 287, SUGAR: 13.4, COCOA: 3421, COTTON: 79.3, OJ: 185,
+  GASOLINE: 3.01, HEATING: 3.43, CATTLE: 247, HOGS: 101,
 };
 
-const CATEGORY_MAP: Record<string, 'crypto' | 'stocks' | 'commodities'> = {
-  BTC: 'crypto', ETH: 'crypto', SOL: 'crypto', BNB: 'crypto', XRP: 'crypto', ADA: 'crypto',
-  AAPL: 'stocks', TSLA: 'stocks', NVDA: 'stocks', MSFT: 'stocks', AMZN: 'stocks', GOOGL: 'stocks', META: 'stocks',
-  XAUUSD: 'commodities', XAGUSD: 'commodities', USOIL: 'commodities', NATGAS: 'commodities', COPPER: 'commodities',
-};
+function getCategory(symbol: string): 'crypto' | 'stocks' | 'commodities' {
+  if (['XAUUSD', 'XAGUSD', 'USOIL', 'BRENT', 'NATGAS', 'COPPER',
+       'PLATINUM', 'PALLADIUM', 'WHEAT', 'CORN', 'SOYBEAN',
+       'COFFEE', 'SUGAR', 'COCOA', 'COTTON', 'OJ',
+       'GASOLINE', 'HEATING', 'CATTLE', 'HOGS'].includes(symbol)) return 'commodities';
+  if (['AAPL', 'TSLA', 'NVDA', 'MSFT', 'AMZN', 'GOOGL', 'META',
+       'NFLX', 'AMD', 'INTC', 'CRM', 'ORCL', 'QCOM', 'AVGO',
+       'JPM', 'V', 'GS', 'JNJ', 'UNH',
+       'WMT', 'DIS', 'KO', 'PEP', 'HD', 'NKE', 'BA', 'PYPL'].includes(symbol)) return 'stocks';
+  // Default all non-stock/non-commodity tickers to crypto.
+  return 'crypto';
+}
 
 type MWCategory = 'all' | 'crypto' | 'stocks' | 'commodities';
 const MW_CATEGORIES: { key: MWCategory; label: string; icon: string }[] = [
@@ -67,6 +81,7 @@ export default function App() {
   const [timeframe, setTimeframe] = useState('H1');
   const [activeTab, setActiveTab] = useState('Trade');
   const [mwCategory, setMwCategory] = useState<MWCategory>('crypto');
+  const [mwQuery, setMwQuery] = useState('');
   const [showOrderTicket, setShowOrderTicket] = useState(false);
   const [candles, setCandles] = useState<OHLCCandle[]>([]);
   const [pythonStats, setPythonStats] = useState<PythonMarketStats | null>(null);
@@ -117,6 +132,23 @@ export default function App() {
   }, 0);
 
   const selectedTick = marketData.find(m => m.symbol === selectedSymbol);
+  const filteredMarketData = marketData.filter(m => {
+    const category = m.category ?? getCategory(m.symbol);
+    if (mwCategory !== 'all' && category !== mwCategory) return false;
+    if (mwQuery.trim()) {
+      const q = mwQuery.trim().toUpperCase();
+      return m.symbol.toUpperCase().includes(q);
+    }
+    return true;
+  });
+
+  useEffect(() => {
+    const stockCandidates = filteredMarketData
+      .filter(m => (m.category ?? getCategory(m.symbol)) === 'stocks')
+      .map(m => m.symbol)
+      .slice(0, 60);
+    setPreferredStockSymbols(stockCandidates);
+  }, [filteredMarketData]);
 
   return (
     <div className="mt5-root">
@@ -179,16 +211,23 @@ export default function App() {
               </button>
             ))}
           </div>
+          <div className="mw-search-wrap">
+            <input
+              className="mw-search"
+              placeholder="Search symbol..."
+              value={mwQuery}
+              onChange={(e) => setMwQuery(e.target.value)}
+            />
+          </div>
 
           <div className="mt5-mw-header">
             <span>Symbol</span><span>Price</span><span>Chg%</span>
           </div>
           <div className="mt5-mw-list">
-            {marketData
-              .filter(m => mwCategory === 'all' || CATEGORY_MAP[m.symbol] === mwCategory)
-              .map(m => {
+            {filteredMarketData.map(m => {
                 const isSelected = m.symbol === selectedSymbol;
                 const isUp = m.change >= 0;
+                const ageSec = Math.max(0, Math.round((Date.now() - new Date(m.timestamp).getTime()) / 1000));
                 // Smart decimal places by asset price range
                 const decimals = m.price >= 1000 ? 2 : m.price >= 100 ? 2 : m.price >= 1 ? 3 : 5;
                 const priceStr = '$' + m.price.toFixed(decimals);
@@ -200,7 +239,11 @@ export default function App() {
                     onDoubleClick={() => { setSelectedSymbol(m.symbol); setShowOrderTicket(true); }}
                     title={`${m.symbol} — $${m.price.toFixed(decimals)} | Double-click to trade`}
                   >
-                    <span className="mw-sym">{m.symbol}</span>
+                    <span className="mw-sym-wrap">
+                      <span className="mw-sym">{m.symbol}</span>
+                      <span className="mw-src">{m.source ?? '-'}</span>
+                      <span className="mw-age">{ageSec}s</span>
+                    </span>
                     <span className={cn('mw-price', isUp ? 'up' : 'down')}>{priceStr}</span>
                     <span className={cn('mw-chg', isUp ? 'up' : 'down')}>{isUp ? '+' : ''}{m.change.toFixed(2)}%</span>
                   </div>

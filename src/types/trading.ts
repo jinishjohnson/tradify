@@ -16,6 +16,8 @@ export interface Trade {
 
 export interface MarketData {
   symbol: string;
+  category?: 'crypto' | 'stocks' | 'commodities';
+  source?: 'TD' | 'STOOQ' | 'FINNHUB' | 'BINANCE';
   price: number;
   change: number;
   volume: number;

@@ -31,8 +31,12 @@ const PERIODS = ['1mo','3mo','6mo','1y','2y','5y'];
 
 const SYMBOLS = [
   'AAPL','TSLA','NVDA','MSFT','AMZN','GOOGL','META',
+  'NFLX','AMD','INTC','CRM','ORCL','QCOM','AVGO',
+  'JPM','V','GS','JNJ','UNH',
+  'WMT','DIS','KO','PEP','HD','NKE','BA','PYPL',
   'BTC-USD','ETH-USD','SOL-USD',
-  'GC=F','CL=F', // Gold, Oil yfinance tickers
+  'GC=F','SI=F','CL=F','BZ=F','NG=F','HG=F', // Metals & Energy yfinance tickers
+  'PL=F','ZW=F','ZC=F','ZS=F','KC=F','CC=F','CT=F', // Agri & Industrial
 ];
 
 export function BacktestPanel() {

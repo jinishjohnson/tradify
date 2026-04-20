@@ -164,6 +164,25 @@
 
 .mw-cat-icon { font-size: 12px; line-height: 1; }
 
+.mw-search-wrap {
+  padding: 6px;
+  border-bottom: 1px solid #1e222d;
+  background: #151821;
+}
+.mw-search {
+  width: 100%;
+  box-sizing: border-box;
+  background: #131722;
+  border: 1px solid #2a2e39;
+  border-radius: 4px;
+  color: #d1d4dc;
+  font-size: 11px;
+  padding: 5px 7px;
+  outline: none;
+}
+.mw-search:focus { border-color: #2962ff66; }
+.mw-search::placeholder { color: #555; }
+
 
 .mt5-panel-title {
   padding: 5px 8px;
@@ -204,12 +223,32 @@
 .mt5-mw-row:hover { background: #1e2235; }
 .mt5-mw-row.selected { background: #2962ff18; border-left: 2px solid #2962ff; padding-left: 6px; }
 
+.mw-sym-wrap {
+  min-width: 52px;
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
 .mw-sym {
   font-weight: 700;
   font-size: 11px;
   color: #d1d4dc;
-  min-width: 52px;
   letter-spacing: 0.3px;
+}
+.mw-age {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  color: #555;
+}
+.mw-src {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 8px;
+  color: #7b7f89;
+  background: #222736;
+  border: 1px solid #2f3547;
+  border-radius: 3px;
+  padding: 0 3px;
+  line-height: 1.3;
 }
 
 .mw-price {
