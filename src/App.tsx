@@ -10,9 +10,32 @@ import { cn, formatCurrency } from './lib/utils';
 import { getMarketRecommendations } from './services/aiService';
 import { fetchPythonMarketStats, PythonMarketStats } from './services/dataService';
 import { TradingChart, OHLCCandle } from './components/TradingChart';
-import { Play, Pause, Plus, RefreshCw, Clock, BarChart2, Settings } from 'lucide-react';
+import { OrderTicket } from './components/OrderTicket';
+import { NewsPanel } from './components/NewsPanel';
+import { Play, Pause, Plus, Clock } from 'lucide-react';
 
-const BASE_PRICES: Record<string, number> = { BTC: 65000, ETH: 3500, SOL: 150, AAPL: 175, TSLA: 250, NVDA: 900 };
+const BASE_PRICES: Record<string, number> = {
+  // Crypto (Binance live — these are fallback seeds only)
+  BTC: 75000, ETH: 1580, SOL: 130, BNB: 590, XRP: 2.15, ADA: 0.62,
+  // Stocks (Twelve Data live — these are fallback seeds only)
+  AAPL: 198, TSLA: 247, NVDA: 875, MSFT: 378, AMZN: 182, GOOGL: 156, META: 498,
+  // Commodities — updated to real April 2026 prices
+  XAUUSD: 4792, XAGUSD: 32.5, USOIL: 62.4, NATGAS: 3.2, COPPER: 4.8,
+};
+
+const CATEGORY_MAP: Record<string, 'crypto' | 'stocks' | 'commodities'> = {
+  BTC: 'crypto', ETH: 'crypto', SOL: 'crypto', BNB: 'crypto', XRP: 'crypto', ADA: 'crypto',
+  AAPL: 'stocks', TSLA: 'stocks', NVDA: 'stocks', MSFT: 'stocks', AMZN: 'stocks', GOOGL: 'stocks', META: 'stocks',
+  XAUUSD: 'commodities', XAGUSD: 'commodities', USOIL: 'commodities', NATGAS: 'commodities', COPPER: 'commodities',
+};
+
+type MWCategory = 'all' | 'crypto' | 'stocks' | 'commodities';
+const MW_CATEGORIES: { key: MWCategory; label: string; icon: string }[] = [
+  { key: 'all', label: 'All', icon: '◈' },
+  { key: 'crypto', label: 'Crypto', icon: '₿' },
+  { key: 'stocks', label: 'Stocks', icon: '📈' },
+  { key: 'commodities', label: 'Commod.', icon: '⛏' },
+];
 const TIMEFRAMES: Record<string, number> = { M1: 60, M5: 300, M15: 900, M30: 1800, H1: 3600, H4: 14400, D1: 86400 };
 
 function genHistory(symbol: string, tf: number, count = 200): OHLCCandle[] {
@@ -38,11 +61,13 @@ function genHistory(symbol: string, tf: number, count = 200): OHLCCandle[] {
 const TABS = ['Trade', 'Exposure', 'History', 'News', 'Mailbox', 'Calendar', 'Alerts', 'Journal'];
 
 export default function App() {
-  const { portfolio, marketData, isBotRunning, setIsBotRunning, logs, executeTrade, riskSettings, setRiskSettings } = useTradingEngine();
+  const { portfolio, marketData, isBotRunning, setIsBotRunning, logs, executeTrade, executeManualTrade, closePosition, riskSettings, setRiskSettings } = useTradingEngine();
 
   const [selectedSymbol, setSelectedSymbol] = useState('BTC');
   const [timeframe, setTimeframe] = useState('H1');
   const [activeTab, setActiveTab] = useState('Trade');
+  const [mwCategory, setMwCategory] = useState<MWCategory>('crypto');
+  const [showOrderTicket, setShowOrderTicket] = useState(false);
   const [candles, setCandles] = useState<OHLCCandle[]>([]);
   const [pythonStats, setPythonStats] = useState<PythonMarketStats | null>(null);
   const currentCandleRef = useRef<OHLCCandle | null>(null);
@@ -108,7 +133,7 @@ export default function App() {
           Algo Trading
         </button>
 
-        <button className="mt5-btn" onClick={() => selectedSymbol && executeTrade(selectedSymbol)}>
+        <button className="mt5-btn" onClick={() => setShowOrderTicket(true)}>
           <Plus size={12} /> New Order
         </button>
 
@@ -139,26 +164,48 @@ export default function App() {
         {/* Market Watch */}
         <aside className="mt5-market-watch">
           <div className="mt5-panel-title">Market Watch</div>
+
+          {/* Category Tabs */}
+          <div className="mw-cat-tabs">
+            {MW_CATEGORIES.map(cat => (
+              <button
+                key={cat.key}
+                data-key={cat.key}
+                className={cn('mw-cat-btn', mwCategory === cat.key && 'active')}
+                onClick={() => setMwCategory(cat.key)}
+              >
+                <span className="mw-cat-icon">{cat.icon}</span>
+                {cat.label}
+              </button>
+            ))}
+          </div>
+
           <div className="mt5-mw-header">
-            <span>Symbol</span><span>Bid</span><span>Ask</span><span>Chg%</span>
+            <span>Symbol</span><span>Price</span><span>Chg%</span>
           </div>
           <div className="mt5-mw-list">
-            {marketData.map(m => {
-              const isSelected = m.symbol === selectedSymbol;
-              const isUp = m.change >= 0;
-              return (
-                <div
-                  key={m.symbol}
-                  className={cn('mt5-mw-row', isSelected && 'selected')}
-                  onClick={() => setSelectedSymbol(m.symbol)}
-                >
-                  <span className="mw-sym">{m.symbol}</span>
-                  <span className={isUp ? 'up' : 'down'}>{m.price.toFixed(m.price > 100 ? 2 : 4)}</span>
-                  <span className={isUp ? 'up' : 'down'}>{(m.price * 1.0001).toFixed(m.price > 100 ? 2 : 4)}</span>
-                  <span className={isUp ? 'up' : 'down'}>{isUp ? '+' : ''}{m.change.toFixed(2)}%</span>
-                </div>
-              );
-            })}
+            {marketData
+              .filter(m => mwCategory === 'all' || CATEGORY_MAP[m.symbol] === mwCategory)
+              .map(m => {
+                const isSelected = m.symbol === selectedSymbol;
+                const isUp = m.change >= 0;
+                // Smart decimal places by asset price range
+                const decimals = m.price >= 1000 ? 2 : m.price >= 100 ? 2 : m.price >= 1 ? 3 : 5;
+                const priceStr = '$' + m.price.toFixed(decimals);
+                return (
+                  <div
+                    key={m.symbol}
+                    className={cn('mt5-mw-row', isSelected && 'selected')}
+                    onClick={() => setSelectedSymbol(m.symbol)}
+                    onDoubleClick={() => { setSelectedSymbol(m.symbol); setShowOrderTicket(true); }}
+                    title={`${m.symbol} — $${m.price.toFixed(decimals)} | Double-click to trade`}
+                  >
+                    <span className="mw-sym">{m.symbol}</span>
+                    <span className={cn('mw-price', isUp ? 'up' : 'down')}>{priceStr}</span>
+                    <span className={cn('mw-chg', isUp ? 'up' : 'down')}>{isUp ? '+' : ''}{m.change.toFixed(2)}%</span>
+                  </div>
+                );
+              })}
           </div>
 
           {/* Portfolio summary */}
@@ -219,7 +266,7 @@ export default function App() {
           {activeTab === 'Trade' && (
             <table className="mt5-table">
               <thead>
-                <tr><th>Symbol</th><th>Ticket</th><th>Time</th><th>Type</th><th>Volume</th><th>Price</th><th>S/L</th><th>T/P</th><th>Current</th><th>Profit</th></tr>
+                <tr><th>Symbol</th><th>Ticket</th><th>Time</th><th>Type</th><th>Volume</th><th>Price</th><th>S/L</th><th>T/P</th><th>Current</th><th>Profit</th><th></th></tr>
               </thead>
               <tbody>
                 {portfolio.openPositions.length === 0 ? (
@@ -239,6 +286,7 @@ export default function App() {
                       <td className="mono dim">{p.takeProfit?.toFixed(2) ?? '-'}</td>
                       <td className="mono">{cur?.price.toFixed(2) ?? '-'}</td>
                       <td className={cn('mono bold', pnl >= 0 ? 'up' : 'down')}>{pnl >= 0 ? '+' : ''}{pnl.toFixed(2)}</td>
+                      <td><button className="close-pos-btn" onClick={() => closePosition(p.id)}>✕ Close</button></td>
                     </tr>
                   );
                 })}
@@ -266,13 +314,18 @@ export default function App() {
               </tbody>
             </table>
           )}
+          {activeTab === 'News' && (
+            <NewsPanel
+              onTrade={(sym) => { setSelectedSymbol(sym); setShowOrderTicket(true); }}
+            />
+          )}
           {activeTab === 'Journal' && (
             <div className="mt5-log">
               {logs.map((l, i) => <div key={i} className="mt5-log-entry">{l}</div>)}
               {logs.length === 0 && <div style={{ color: '#555', padding: 8 }}>No activity yet. Start the algo engine.</div>}
             </div>
           )}
-          {!['Trade', 'History', 'Journal'].includes(activeTab) && (
+          {!['Trade', 'History', 'News', 'Journal'].includes(activeTab) && (
             <div style={{ padding: 12, color: '#555', fontSize: 12 }}>No data for {activeTab}</div>
           )}
         </div>
@@ -294,6 +347,15 @@ export default function App() {
           <span className="dim">Latency: 12ms</span>
         </div>
       </div>
+      {showOrderTicket && (
+        <OrderTicket
+          symbol={selectedSymbol}
+          marketData={marketData}
+          balance={portfolio.balance}
+          onPlace={executeManualTrade}
+          onClose={() => setShowOrderTicket(false)}
+        />
+      )}
     </div>
   );
 }

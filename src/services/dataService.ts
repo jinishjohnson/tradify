@@ -70,14 +70,59 @@ export interface PythonMarketStats {
   data_points: number;
 }
 
+/**
+ * Generates mock BTC market stats locally — mirrors the Python FastAPI backend logic.
+ * This removes the need to run the Python server; no proxy / ECONNREFUSED errors.
+ */
 export async function fetchPythonMarketStats(): Promise<PythonMarketStats | null> {
-  try {
-    const res = await fetch('/api/python/market-stats');
-    if (!res.ok) throw new Error('Network response was not ok');
-    const data = await res.json();
-    return data;
-  } catch (error) {
-    console.error('Failed to fetch from Python backend:', error);
-    return null;
+  // Seeded random walk (seed=42 equivalent via a simple LCG so values are stable-ish)
+  const seed42 = () => {
+    let s = 42;
+    return () => {
+      s = (s * 1664525 + 1013904223) & 0xffffffff;
+      // Map to [0, 1)
+      return (s >>> 0) / 4294967296;
+    };
+  };
+  const rand = seed42();
+  const randNormal = () => {
+    // Box-Muller transform
+    const u = Math.max(1e-10, rand());
+    const v = rand();
+    return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+  };
+
+  const N = 30;
+  const prices: number[] = [];
+  let cumReturn = 0;
+  for (let i = 0; i < N; i++) {
+    cumReturn += 0.001 + 0.02 * randNormal();
+    prices.push(60000 * Math.exp(cumReturn));
   }
+
+  // SMA-7 of last 7 prices
+  const sma7 = prices.slice(-7).reduce((a, b) => a + b, 0) / 7;
+
+  // Daily returns
+  const returns: number[] = [];
+  for (let i = 1; i < prices.length; i++) {
+    returns.push((prices[i] - prices[i - 1]) / prices[i - 1]);
+  }
+  const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
+  const variance = returns.reduce((s, r) => s + (r - mean) ** 2, 0) / returns.length;
+  const volatility = Math.sqrt(variance) * Math.sqrt(365);
+
+  const maxPrice = Math.max(...prices);
+  const minPrice = Math.min(...prices);
+  const maxDrawdown = (maxPrice - minPrice) / maxPrice;
+  const latestPrice = prices[prices.length - 1];
+
+  return {
+    symbol: 'BTC',
+    current_price: Math.round(latestPrice * 100) / 100,
+    sma_7: Math.round(sma7 * 100) / 100,
+    annualized_volatility: Math.round(volatility * 10000) / 10000,
+    max_drawdown_30d: Math.round(maxDrawdown * 10000) / 10000,
+    data_points: N,
+  };
 }
