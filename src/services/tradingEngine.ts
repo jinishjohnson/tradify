@@ -66,11 +66,11 @@ export function useTradingEngine() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Binance WebSocket → fetch top 50 USDT pairs and stream real-time updates
+  // Binance data → list all USDT pairs; stream most liquid subset in real time
   useEffect(() => {
     let disconnect = () => {};
 
-    // 1. Fetch Top 50 Cryptos
+    // 1) Fetch all traded USDT pairs
     const headers: Record<string, string> = {};
     if (BINANCE_API_KEY && !BINANCE_API_KEY.includes('YOUR_')) {
       headers['X-MBX-APIKEY'] = BINANCE_API_KEY;
@@ -79,35 +79,46 @@ export function useTradingEngine() {
     fetch('https://api.binance.com/api/v3/ticker/24hr', { headers })
       .then(res => res.json())
       .then(data => {
-        // Get the top 50 most actively traded USDT pairs today
-        const topCryptos = data
-          .filter((d: any) => d.symbol.endsWith('USDT'))
-          .sort((a: any, b: any) => parseFloat(b.quoteVolume) - parseFloat(a.quoteVolume))
-          .slice(0, 50)
-          .map((d: any) => d.symbol.replace('USDT', ''));
-          
-        const cryptoSymbols = topCryptos.length > 0 ? topCryptos : ['BTC', 'ETH', 'SOL', 'BNB', 'XRP', 'ADA'];
-        
-        // 2. Initialize new pairs in market data immediately to avoid UI popping
+        const usdtPairs = (data as any[])
+          .filter((d: any) => d.symbol?.endsWith('USDT') && d.lastPrice)
+          .sort((a: any, b: any) => parseFloat(b.quoteVolume || '0') - parseFloat(a.quoteVolume || '0'));
+
+        const cryptoSymbols = usdtPairs.map((d: any) => d.symbol.replace('USDT', ''));
+        const streamSymbols = cryptoSymbols.slice(0, 180);
+        const fallbackSymbols = ['BTC', 'ETH', 'SOL', 'BNB', 'XRP', 'ADA'];
+        const displaySymbols = cryptoSymbols.length > 0 ? cryptoSymbols : fallbackSymbols;
+
+        // 2) Initialize all pairs in market data immediately to avoid UI popping
         setMarketData(prev => {
           const existingSyms = new Set(prev.map(m => m.symbol));
-          const newItems = cryptoSymbols.filter((s: string) => !existingSyms.has(s)).map((s: string) => ({
-             symbol: s,
-             price: 0,
-             change: 0,
-             volume: 0,
-             timestamp: new Date().toISOString()
-          }));
+          const tickMap = new Map(
+            usdtPairs.map((d: any) => [d.symbol.replace('USDT', ''), d]),
+          );
+          const newItems = displaySymbols
+            .filter((s: string) => !existingSyms.has(s))
+            .map((s: string) => {
+              const row = tickMap.get(s);
+              const price = parseFloat(row?.lastPrice || '0');
+              const change = parseFloat(row?.priceChangePercent || '0');
+              const volume = parseFloat(row?.quoteVolume || '0');
+              return {
+                symbol: s,
+                price: Number.isFinite(price) ? price : 0,
+                change: Number.isFinite(change) ? change : 0,
+                volume: Number.isFinite(volume) ? volume : 0,
+                timestamp: new Date().toISOString()
+              };
+            });
           return [...prev, ...newItems];
         });
 
-        // 3. Connect real-time stream for all of them
-        disconnect = connectBinanceWebSocket(cryptoSymbols, (symbol, price) => {
+        // 3) Connect real-time stream for most liquid pairs only (connection-safe)
+        disconnect = connectBinanceWebSocket(streamSymbols.length > 0 ? streamSymbols : fallbackSymbols, (symbol, price) => {
           pendingUpdates.current[symbol] = price;
         });
       })
       .catch(err => {
-        console.error('Failed to fetch Binance top cryptos:', err);
+        console.error('Failed to fetch Binance crypto list:', err);
         // Fallback to hardcoded list if API fails
         disconnect = connectBinanceWebSocket(['BTC', 'ETH', 'SOL', 'BNB', 'XRP', 'ADA'], (symbol, price) => {
           pendingUpdates.current[symbol] = price;
