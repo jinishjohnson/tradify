@@ -39,8 +39,8 @@ export function useTradingEngine() {
 
   // ── Real Market Data Integration ─────────────────────────────────────────
   // Crypto: Binance WebSocket (real-time, no key)
-  // Stocks/Commodities: Twelve Data REST every 15s
-  // Fallback: simulated random walk seeded from last real price
+  // Stocks/Commodities: Twelve Data REST every few seconds
+  // Crypto fallback: Binance REST when WebSocket is unavailable
 
   const BASE_MAP: Record<string, number> = {
     // Crypto (Binance WebSocket overrides these immediately)
@@ -152,42 +152,27 @@ export function useTradingEngine() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Twelve Data REST → update remaining (commodities, or stocks if Finnhub missing) every 15s
+  // Twelve Data/Binance REST fallback for all asset classes every 5s
   useEffect(() => {
     const poll = async () => {
       const quotes = await fetchAllLiveQuotes();
       if (Object.keys(quotes).length === 0) return; // rate-limited, keep existing
-      setMarketData(prev => prev.map(m => {
-        const q = quotes[m.symbol];
-        if (!q) return m;
-        return { ...m, price: q.price, change: q.change, timestamp: q.timestamp };
-      }));
+      setMarketData(prev => {
+        const updated = prev.map(m => {
+          const q = quotes[m.symbol];
+          if (!q) return m;
+          return { ...m, price: q.price, change: q.change, volume: q.volume, timestamp: q.timestamp };
+        });
+        const existing = new Set(updated.map(m => m.symbol));
+        const additions = Object.values(quotes).filter(q => !existing.has(q.symbol));
+        return additions.length > 0 ? [...updated, ...additions] : updated;
+      });
     };
 
     poll(); // immediate first fetch
-    const id = setInterval(poll, 15_000);
+    const id = setInterval(poll, 5_000);
     return () => clearInterval(id);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Sim fallback — keeps stock/commodity prices moving when market is closed / API quota hit
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setMarketData(prev => prev.map(m => {
-        // Only apply sim to non-crypto (crypto is live via Binance WS)
-        if (['BTC','ETH','SOL','BNB','XRP','ADA'].includes(m.symbol)) return m;
-        // Tiny random walk so the chart doesn't go flat
-        const drift = (Math.random() - 0.499) * 0.001;
-        const price = m.price * (1 + drift);
-        if (!priceHistory.current[m.symbol]) priceHistory.current[m.symbol] = [];
-        priceHistory.current[m.symbol].push(price);
-        if (priceHistory.current[m.symbol].length > HISTORY_WINDOW) priceHistory.current[m.symbol].shift();
-        const oldest = priceHistory.current[m.symbol][0] ?? price;
-        const change = ((price / oldest) - 1) * 100;
-        return { ...m, price, change };
-      }));
-    }, 3000);
-    return () => clearInterval(interval);
   }, []);
 
   // Keep refs in sync with state

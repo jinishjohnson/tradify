@@ -44,6 +44,7 @@ const BINANCE_STREAMS: Record<string, string> = {
 
 const TD_BASE = 'https://api.twelvedata.com';
 const API_KEY = import.meta.env.VITE_TWELVE_DATA_KEY as string;
+const BINANCE_REST_BASE = 'https://api.binance.com';
 
 function parsePriceResponse(json: any, tdSymbols: string[]): Record<string, { price: number; change: number; volume: number }> {
   const result: Record<string, { price: number; change: number; volume: number }> = {};
@@ -124,6 +125,41 @@ async function fetchTwelveDataEod(tdSymbols: string[]) {
     } catch { /* API unavailable */ }
   }
   return {};
+}
+
+async function fetchBinancePrices(symbols: string[]): Promise<Record<string, { price: number; change: number; volume: number }>> {
+  const result: Record<string, { price: number; change: number; volume: number }> = {};
+  const pairs = symbols.map((s) => `${s}USDT`);
+  if (pairs.length === 0) return result;
+
+  try {
+    const res = await fetch(`${BINANCE_REST_BASE}/api/v3/ticker/24hr`);
+    if (!res.ok) return result;
+    const data = (await res.json()) as Array<{
+      symbol: string;
+      lastPrice: string;
+      priceChangePercent: string;
+      quoteVolume: string;
+    }>;
+    data.forEach((row) => {
+      if (!pairs.includes(row.symbol)) return;
+      const appSymbol = row.symbol.replace('USDT', '');
+      const price = parseFloat(row.lastPrice);
+      const change = parseFloat(row.priceChangePercent);
+      const volume = parseFloat(row.quoteVolume);
+      if (!isNaN(price)) {
+        result[appSymbol] = {
+          price,
+          change: isNaN(change) ? 0 : change,
+          volume: isNaN(volume) ? 0 : volume,
+        };
+      }
+    });
+  } catch {
+    // Ignore network/transient errors.
+  }
+
+  return result;
 }
 
 // ── WebSockets (Binance & Finnhub) ────────────────────────────────────────────
@@ -240,7 +276,7 @@ const priceCache: Record<string, number> = {};
 let prevCloseCache: Record<string, number> = {};
 let lastFetchTime = 0;
 let lastResult: Record<string, LiveQuote> = {};
-const MIN_FETCH_INTERVAL_MS = 55_000; 
+const MIN_FETCH_INTERVAL_MS = 4_500;
 
 export async function fetchAllLiveQuotes(): Promise<Record<string, LiveQuote>> {
   const now = Date.now();
@@ -250,29 +286,49 @@ export async function fetchAllLiveQuotes(): Promise<Record<string, LiveQuote>> {
 
   const stockCommodityEntries = Object.entries(TD_SYMBOLS).filter(([appSym]) => !BINANCE_STREAMS[appSym]);
   const tdSymsList = stockCommodityEntries.map(([, td]) => td);
+  const cryptoSymbols = Object.keys(BINANCE_STREAMS);
 
   if (Object.keys(prevCloseCache).length === 0) {
     prevCloseCache = await fetchTwelveDataEod(tdSymsList);
   }
 
-  const prices = await fetchTwelveDataBatch(tdSymsList);
-  if (Object.keys(prices).length === 0) return lastResult;
-
+  const [prices, cryptoPrices] = await Promise.all([
+    fetchTwelveDataBatch(tdSymsList),
+    fetchBinancePrices(cryptoSymbols),
+  ]);
   const result: Record<string, LiveQuote> = {};
-  for (const [appSym, tdSym] of stockCommodityEntries) {
-    const live = prices[tdSym];
+
+  if (Object.keys(prices).length > 0) {
+    for (const [appSym, tdSym] of stockCommodityEntries) {
+      const live = prices[tdSym];
+      if (!live) continue;
+      const prevClose = prevCloseCache[tdSym] ?? live.price;
+      const change = prevClose ? ((live.price - prevClose) / prevClose) * 100 : 0;
+      priceCache[appSym] = live.price;
+      result[appSym] = {
+        symbol: appSym,
+        price: live.price,
+        change,
+        volume: 0,
+        timestamp: new Date().toISOString(),
+      };
+    }
+  }
+
+  for (const symbol of cryptoSymbols) {
+    const live = cryptoPrices[symbol];
     if (!live) continue;
-    const prevClose = prevCloseCache[tdSym] ?? live.price;
-    const change = prevClose ? ((live.price - prevClose) / prevClose) * 100 : 0;
-    priceCache[appSym] = live.price;
-    result[appSym] = {
-      symbol: appSym,
+    priceCache[symbol] = live.price;
+    result[symbol] = {
+      symbol,
       price: live.price,
-      change,
-      volume: 0,
+      change: live.change,
+      volume: live.volume,
       timestamp: new Date().toISOString(),
     };
   }
+
+  if (Object.keys(result).length === 0) return lastResult;
 
   if (Object.keys(result).length > 0) {
     lastResult = result;
